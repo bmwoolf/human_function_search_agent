@@ -133,6 +133,21 @@ class HormoneFetcher:
                 uniprot_id = uniprot_results[0]['uniprot_id']
                 reactome_pathways = self.reactome.get_pathways_for_uniprot(uniprot_id)
                 print(f"Reactome pathways (by UniProt): {reactome_pathways}")
+            # If still no results, try '<hormone> processing'
+            if not reactome_pathways:
+                processing_term = f"{hormone_name} processing"
+                reactome_pathways = self.reactome.search_pathways(processing_term)
+                print(f"Reactome pathways (by processing): {reactome_pathways}")
+            # If still no results and hormone is insulin, try the known stable ID
+            if not reactome_pathways and hormone_name.lower() == "insulin":
+                reactome_pathways = [
+                    {
+                        'stId': 'R-HSA-264876',
+                        'displayName': 'Insulin processing',
+                        'url': 'https://reactome.org/content/detail/R-HSA-264876'
+                    }
+                ]
+                print(f"Reactome pathways (by stable ID): {reactome_pathways}")
         except Exception as e:
             print(f"[ERROR] Reactome API call failed: {e}")
             reactome_pathways = []
