@@ -6,7 +6,7 @@ A tool that automates the creation of structured biological metadata spreadsheet
 
 ## Goals
 
-- Use UniProt, PubMed, and KEGG APIs to extract structured metadata
+- Use UniProt, PubMed, Reactome, and KEGG APIs to extract structured metadata
 - Normalize into consistent CSV schemas
 - Output downloadable .csv and .xlsx files
 - Package as a CLI or Streamlit-based agent for user interaction
@@ -51,6 +51,7 @@ pip install -r requirements.txt
 
 - **UniProt**: Protein sequence and annotation data
 - **PubMed**: Scientific literature and research papers
+- **Reactome**: Pathway database
 - **KEGG**: Pathway and molecular interaction databases
 
 ## Usage
@@ -83,6 +84,7 @@ streamlit run agent/main.py
 ### API Integration
 - UniProt API: `utils/uniprot_api.py`
 - PubMed API: `utils/pubmed_scraper.py`
+- Reactome API: `utils/reactome_api.py`
 - KEGG API: `utils/kegg_api.py`
 
 ## Future Enhancements 
