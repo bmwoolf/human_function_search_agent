@@ -309,17 +309,8 @@ def streamlit_app():
 
 
 if __name__ == "__main__":
-    import sys
-    import os
-
-    # Robust Streamlit detection
-    is_streamlit = (
-        "streamlit" in sys.modules
-        or any("streamlit" in arg for arg in sys.argv)
-        or os.environ.get("STREAMLIT_RUN_CONTEXT") is not None
-    )
-
-    if is_streamlit:
+    # Check if running with streamlit
+    if len(sys.argv) > 1 and sys.argv[1] == "streamlit":
         streamlit_app()
     else:
         cli() 
