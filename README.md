@@ -1,3 +1,5 @@
+![Banner](assets/github_banner.png)
+
 # Human Function Search Agent (Atlas)
 
 A tool that automates the creation of structured biological metadata spreadsheets for 5 domains: Human Cells, Enzymes, Hormones, Endogenous Amino Acids, and Foreign Amino Acids.
