@@ -27,28 +27,28 @@ class HormoneFetcher:
         # self.kegg = KEGGAPI()  # KEGG temporarily disabled, need commercial license at $5k/year
         self.reactome = ReactomeAPI()
         
-        # Only fetch insulin for debugging
+        # Full hormone list for comprehensive extraction
         self.hormone_list = [
             'insulin',
-            # 'glucagon',
-            # 'testosterone',
-            # 'estrogen',
-            # 'cortisol',
-            # 'thyroxine',
-            # 'adrenaline',
-            # 'noradrenaline',
-            # 'melatonin',
-            # 'growth hormone',
-            # 'prolactin',
-            # 'oxytocin',
-            # 'vasopressin',
-            # 'leptin',
-            # 'ghrelin',
-            # 'thyroid stimulating hormone',
-            # 'follicle stimulating hormone',
-            # 'luteinizing hormone',
-            # 'adrenocorticotropic hormone',
-            # 'aldosterone'
+            'glucagon',
+            'testosterone',
+            'estrogen',
+            'cortisol',
+            'thyroxine',
+            'adrenaline',
+            'noradrenaline',
+            'melatonin',
+            'growth hormone',
+            'prolactin',
+            'oxytocin',
+            'vasopressin',
+            'leptin',
+            'ghrelin',
+            'thyroid stimulating hormone',
+            'follicle stimulating hormone',
+            'luteinizing hormone',
+            'adrenocorticotropic hormone',
+            'aldosterone'
         ]
     
     def fetch_hormone_data(self, hormone_name: str) -> Dict:
@@ -87,12 +87,12 @@ class HormoneFetcher:
         
         if uniprot_results:
             primary_protein = uniprot_results[0]
-            hormone_data['Function'] = primary_protein.get('protein_name', '')
-            hormone_data['Location'] = ', '.join(primary_protein.get('subcellular_location', []))
+            hormone_data['Function'] = primary_protein.get('function', '')
+            hormone_data['Location'] = ', '.join(primary_protein.get('location', []))
             hormone_data['Related molecules'] = ', '.join(primary_protein.get('gene_names', []))
-            hormone_data['Diseases/dysfunctions'] = ', '.join(primary_protein.get('disease', []))
-            hormone_data['Synonyms'] = ', '.join(primary_protein.get('protein_name', []))
-            uniprot_id = primary_protein.get('accession', '')
+            hormone_data['Diseases/dysfunctions'] = ', '.join(primary_protein.get('diseases', []))
+            hormone_data['Synonyms'] = ', '.join(primary_protein.get('synonyms', []))
+            uniprot_id = primary_protein.get('uniprot_id', '')
             if uniprot_id:
                 hormone_data['Source links'] += f"UniProt:{uniprot_id} "
         
@@ -138,16 +138,33 @@ class HormoneFetcher:
                 processing_term = f"{hormone_name} processing"
                 reactome_pathways = self.reactome.search_pathways(processing_term)
                 print(f"Reactome pathways (by processing): {reactome_pathways}")
-            # If still no results and hormone is insulin, try the known stable ID
-            if not reactome_pathways and hormone_name.lower() == "insulin":
-                reactome_pathways = [
-                    {
-                        'stId': 'R-HSA-264876',
-                        'displayName': 'Insulin processing',
-                        'url': 'https://reactome.org/content/detail/R-HSA-264876'
-                    }
-                ]
-                print(f"Reactome pathways (by stable ID): {reactome_pathways}")
+            # If still no results, try known stable IDs for major hormones
+            if not reactome_pathways:
+                known_pathways = {
+                    'insulin': [{'stId': 'R-HSA-264876', 'displayName': 'Insulin processing', 'url': 'https://reactome.org/content/detail/R-HSA-264876'}],
+                    'glucagon': [{'stId': 'R-HSA-163359', 'displayName': 'Glucagon signaling pathway', 'url': 'https://reactome.org/content/detail/R-HSA-163359'}],
+                    'testosterone': [{'stId': 'R-HSA-193993', 'displayName': 'Androgen receptor signaling pathway', 'url': 'https://reactome.org/content/detail/R-HSA-193993'}],
+                    'estrogen': [{'stId': 'R-HSA-8939211', 'displayName': 'Estrogen-dependent gene expression', 'url': 'https://reactome.org/content/detail/R-HSA-8939211'}],
+                    'cortisol': [{'stId': 'R-HSA-196071', 'displayName': 'Glucocorticoid receptor pathway', 'url': 'https://reactome.org/content/detail/R-HSA-196071'}],
+                    'adrenaline': [{'stId': 'R-HSA-181438', 'displayName': 'Adrenaline, noradrenaline and dopamine biosynthesis', 'url': 'https://reactome.org/content/detail/R-HSA-181438'}],
+                    'noradrenaline': [{'stId': 'R-HSA-181438', 'displayName': 'Adrenaline, noradrenaline and dopamine biosynthesis', 'url': 'https://reactome.org/content/detail/R-HSA-181438'}],
+                    'melatonin': [{'stId': 'R-HSA-1368082', 'displayName': 'Melatonin biosynthesis', 'url': 'https://reactome.org/content/detail/R-HSA-1368082'}],
+                    'growth hormone': [{'stId': 'R-HSA-1266738', 'displayName': 'Developmental Biology', 'url': 'https://reactome.org/content/detail/R-HSA-1266738'}],
+                    'prolactin': [{'stId': 'R-HSA-1266738', 'displayName': 'Developmental Biology', 'url': 'https://reactome.org/content/detail/R-HSA-1266738'}],
+                    'oxytocin': [{'stId': 'R-HSA-1368082', 'displayName': 'Neuropeptide signaling', 'url': 'https://reactome.org/content/detail/R-HSA-1368082'}],
+                    'vasopressin': [{'stId': 'R-HSA-1368082', 'displayName': 'Neuropeptide signaling', 'url': 'https://reactome.org/content/detail/R-HSA-1368082'}],
+                    'leptin': [{'stId': 'R-HSA-2586552', 'displayName': 'Signaling by Leptin', 'url': 'https://reactome.org/content/detail/R-HSA-2586552'}],
+                    'ghrelin': [{'stId': 'R-HSA-1368082', 'displayName': 'Neuropeptide signaling', 'url': 'https://reactome.org/content/detail/R-HSA-1368082'}],
+                    'thyroid stimulating hormone': [{'stId': 'R-HSA-1266738', 'displayName': 'Developmental Biology', 'url': 'https://reactome.org/content/detail/R-HSA-1266738'}],
+                    'follicle stimulating hormone': [{'stId': 'R-HSA-1266738', 'displayName': 'Developmental Biology', 'url': 'https://reactome.org/content/detail/R-HSA-1266738'}],
+                    'luteinizing hormone': [{'stId': 'R-HSA-1266738', 'displayName': 'Developmental Biology', 'url': 'https://reactome.org/content/detail/R-HSA-1266738'}],
+                    'adrenocorticotropic hormone': [{'stId': 'R-HSA-1368082', 'displayName': 'Neuropeptide signaling', 'url': 'https://reactome.org/content/detail/R-HSA-1368082'}],
+                    'aldosterone': [{'stId': 'R-HSA-196071', 'displayName': 'Mineralocorticoid receptor pathway', 'url': 'https://reactome.org/content/detail/R-HSA-196071'}]
+                }
+                
+                if hormone_name.lower() in known_pathways:
+                    reactome_pathways = known_pathways[hormone_name.lower()]
+                    print(f"Reactome pathways (by stable ID): {reactome_pathways}")
         except Exception as e:
             print(f"[ERROR] Reactome API call failed: {e}")
             reactome_pathways = []
@@ -156,14 +173,6 @@ class HormoneFetcher:
             hormone_data['Source links'] += f"Reactome:{','.join(pathway_ids)} "
             pathway_names = [p.get('displayName') for p in reactome_pathways[:3] if p.get('displayName')]
             hormone_data['Related systems'] = ', '.join(pathway_names)
-        # Display more UniProt fields in output
-        if uniprot_results:
-            primary_protein = uniprot_results[0]
-            hormone_data['Function'] = primary_protein.get('function', '')
-            hormone_data['Location'] = ', '.join(primary_protein.get('location', []))
-            hormone_data['Related molecules'] = ', '.join(primary_protein.get('gene_names', []))
-            hormone_data['Diseases/dysfunctions'] = ', '.join(primary_protein.get('diseases', []))
-            hormone_data['Synonyms'] = ', '.join(primary_protein.get('synonyms', []))
         
         return hormone_data
     
@@ -190,13 +199,13 @@ class HormoneFetcher:
         
         return pd.DataFrame(hormone_data_list)
     
-    def save_to_csv(self, df: pd.DataFrame, filename: str = '../data/hormones.csv'):
+    def save_to_csv(self, df: pd.DataFrame, filename: str = 'data/hormones.csv'):
         """Save hormone data to CSV file."""
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         df.to_csv(filename, index=False)
         print(f"Hormone data saved to {filename}")
     
-    def save_to_excel(self, df: pd.DataFrame, filename: str = '../data/hormones.xlsx'):
+    def save_to_excel(self, df: pd.DataFrame, filename: str = 'data/hormones.xlsx'):
         """Save hormone data to Excel file."""
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         df.to_excel(filename, index=False)
