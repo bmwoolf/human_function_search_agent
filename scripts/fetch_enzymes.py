@@ -1,5 +1,5 @@
 """
-Script to fetch enzyme data from UniProt, PubMed, and KEGG.
+Script to fetch enzyme data from UniProt, PubMed, and Reactome.
 """
 
 import sys
@@ -10,10 +10,12 @@ import pandas as pd
 from typing import List, Dict
 from tqdm import tqdm
 import time
+import requests
 
 from utils.uniprot_api import UniProtAPI
 from utils.pubmed_scraper import PubMedScraper
-from utils.kegg_api import KEGGAPI
+# from utils.kegg_api import KEGGAPI  # KEGG temporarily disabled, need commercial license
+from utils.reactome_api import ReactomeAPI
 
 
 class EnzymeFetcher:
@@ -22,7 +24,8 @@ class EnzymeFetcher:
     def __init__(self):
         self.uniprot = UniProtAPI()
         self.pubmed = PubMedScraper()
-        self.kegg = KEGGAPI()
+        # self.kegg = KEGGAPI()  # KEGG temporarily disabled, need commercial license
+        self.reactome = ReactomeAPI()
         
         # Common human enzymes to fetch
         self.enzyme_list = [
@@ -61,21 +64,22 @@ class EnzymeFetcher:
         }
         
         # Search UniProt for enzyme proteins
-        uniprot_results = self.uniprot.get_proteins_by_keyword(
-            enzyme_name, organism_id='9606', limit=10
-        )
+        try:
+            uniprot_results = self.uniprot.get_proteins_by_keyword(
+                f"{enzyme_name} AND organism_id:9606", limit=10
+            )
+            print(f"UniProt results: {uniprot_results}")
+        except Exception as e:
+            print(f"[ERROR] UniProt API call failed: {e}")
+            uniprot_results = []
         
         if uniprot_results:
-            # Use the first result as primary data
             primary_protein = uniprot_results[0]
-            
             enzyme_data['Function'] = primary_protein.get('function', '')
             enzyme_data['Location'] = ', '.join(primary_protein.get('location', []))
             enzyme_data['Related molecules'] = ', '.join(primary_protein.get('gene_names', []))
             enzyme_data['Diseases/dysfunctions'] = ', '.join(primary_protein.get('diseases', []))
             enzyme_data['Synonyms'] = ', '.join(primary_protein.get('synonyms', []))
-            
-            # Add UniProt ID to source links
             uniprot_id = primary_protein.get('uniprot_id', '')
             if uniprot_id:
                 enzyme_data['Source links'] += f"UniProt:{uniprot_id} "
@@ -84,19 +88,80 @@ class EnzymeFetcher:
         pubmed_results = self.pubmed.search_publications(
             f"{enzyme_name} enzyme", max_results=5
         )
-        
         if pubmed_results:
             pmids = [pub['pmid'] for pub in pubmed_results]
             enzyme_data['Source links'] += f"PubMed:{','.join(pmids)} "
         
-        # Search KEGG for pathways
-        kegg_pathways = self.kegg.search_pathways(enzyme_name)
-        if kegg_pathways:
-            pathway_ids = [path['pathway_id'] for path in kegg_pathways[:3]]
-            enzyme_data['Source links'] += f"KEGG:{','.join(pathway_ids)} "
-            
-            # Add pathway information to related systems
-            pathway_names = [path['name'] for path in kegg_pathways[:3]]
+        # KEGG API temporarily disabled
+        # try:
+        #     kegg_pathways = self.kegg.search_pathways(enzyme_name)
+        #     print(f"KEGG pathways: {kegg_pathways}")
+        # except Exception as e:
+        #     print(f"[ERROR] KEGG API call failed: {e}")
+        #     kegg_pathways = []
+        # if kegg_pathways:
+        #     pathway_ids = [path['pathway_id'] for path in kegg_pathways[:3]]
+        #     enzyme_data['Source links'] += f"KEGG:{','.join(pathway_ids)} "
+        #     pathway_names = [path['name'] for path in kegg_pathways[:3]]
+        #     enzyme_data['Related systems'] = ', '.join(pathway_names)
+
+        # Reactome API for pathway data
+        reactome_pathways = []
+        try:
+            # Try enzyme name first
+            reactome_pathways = self.reactome.search_pathways(enzyme_name)
+            print(f"Reactome pathways (by name): {reactome_pathways}")
+            # If no results, try gene symbol from UniProt
+            if not reactome_pathways and uniprot_results and uniprot_results[0].get('gene_names'):
+                gene_symbol = uniprot_results[0]['gene_names'][0]
+                reactome_pathways = self.reactome.search_pathways(gene_symbol)
+                print(f"Reactome pathways (by gene): {reactome_pathways}")
+            # If still no results, try UniProt accession
+            if not reactome_pathways and uniprot_results and uniprot_results[0].get('uniprot_id'):
+                uniprot_id = uniprot_results[0]['uniprot_id']
+                reactome_pathways = self.reactome.get_pathways_for_uniprot(uniprot_id)
+                print(f"Reactome pathways (by UniProt): {reactome_pathways}")
+            # If still no results, try '<enzyme> metabolism'
+            if not reactome_pathways:
+                metabolism_term = f"{enzyme_name} metabolism"
+                reactome_pathways = self.reactome.search_pathways(metabolism_term)
+                print(f"Reactome pathways (by metabolism): {reactome_pathways}")
+            # If still no results, try known stable IDs for major enzymes
+            if not reactome_pathways:
+                known_pathways = {
+                    'glucose-6-phosphate dehydrogenase': [{'stId': 'R-HSA-70326', 'displayName': 'Glucose metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-70326'}],
+                    'hexokinase': [{'stId': 'R-HSA-70326', 'displayName': 'Glucose metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-70326'}],
+                    'pyruvate kinase': [{'stId': 'R-HSA-70326', 'displayName': 'Glucose metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-70326'}],
+                    'lactate dehydrogenase': [{'stId': 'R-HSA-70326', 'displayName': 'Glucose metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-70326'}],
+                    'creatine kinase': [{'stId': 'R-HSA-352230', 'displayName': 'Amino acid metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-352230'}],
+                    'alkaline phosphatase': [{'stId': 'R-HSA-1430728', 'displayName': 'Metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-1430728'}],
+                    'aspartate aminotransferase': [{'stId': 'R-HSA-352230', 'displayName': 'Amino acid metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-352230'}],
+                    'alanine aminotransferase': [{'stId': 'R-HSA-352230', 'displayName': 'Amino acid metabolism', 'url': 'https://reactome.org/content/detail/R-HSA-352230'}],
+                    'catalase': [{'stId': 'R-HSA-3299685', 'displayName': 'Detoxification of Reactive Oxygen Species', 'url': 'https://reactome.org/content/detail/R-HSA-3299685'}],
+                    'superoxide dismutase': [{'stId': 'R-HSA-3299685', 'displayName': 'Detoxification of Reactive Oxygen Species', 'url': 'https://reactome.org/content/detail/R-HSA-3299685'}],
+                    'glutathione peroxidase': [{'stId': 'R-HSA-3299685', 'displayName': 'Detoxification of Reactive Oxygen Species', 'url': 'https://reactome.org/content/detail/R-HSA-3299685'}],
+                    'cytochrome oxidase': [{'stId': 'R-HSA-163200', 'displayName': 'Respiratory electron transport', 'url': 'https://reactome.org/content/detail/R-HSA-163200'}],
+                    'ATP synthase': [{'stId': 'R-HSA-163200', 'displayName': 'Respiratory electron transport', 'url': 'https://reactome.org/content/detail/R-HSA-163200'}],
+                    'DNA polymerase': [{'stId': 'R-HSA-69306', 'displayName': 'DNA Replication', 'url': 'https://reactome.org/content/detail/R-HSA-69306'}],
+                    'RNA polymerase': [{'stId': 'R-HSA-73857', 'displayName': 'RNA Polymerase I Transcription', 'url': 'https://reactome.org/content/detail/R-HSA-73857'}],
+                    'helicase': [{'stId': 'R-HSA-69306', 'displayName': 'DNA Replication', 'url': 'https://reactome.org/content/detail/R-HSA-69306'}],
+                    'ligase': [{'stId': 'R-HSA-69306', 'displayName': 'DNA Replication', 'url': 'https://reactome.org/content/detail/R-HSA-69306'}],
+                    'kinase': [{'stId': 'R-HSA-162582', 'displayName': 'Signal Transduction', 'url': 'https://reactome.org/content/detail/R-HSA-162582'}],
+                    'phosphatase': [{'stId': 'R-HSA-162582', 'displayName': 'Signal Transduction', 'url': 'https://reactome.org/content/detail/R-HSA-162582'}],
+                    'protease': [{'stId': 'R-HSA-5682586', 'displayName': 'R-HSA-5682586', 'url': 'https://reactome.org/content/detail/R-HSA-5682586'}],
+                    'nuclease': [{'stId': 'R-HSA-69306', 'displayName': 'DNA Replication', 'url': 'https://reactome.org/content/detail/R-HSA-69306'}]
+                }
+                
+                if enzyme_name.lower() in known_pathways:
+                    reactome_pathways = known_pathways[enzyme_name.lower()]
+                    print(f"Reactome pathways (by stable ID): {reactome_pathways}")
+        except Exception as e:
+            print(f"[ERROR] Reactome API call failed: {e}")
+            reactome_pathways = []
+        if reactome_pathways:
+            pathway_ids = [p.get('stId') for p in reactome_pathways[:3] if p.get('stId')]
+            enzyme_data['Source links'] += f"Reactome:{','.join(pathway_ids)} "
+            pathway_names = [p.get('displayName') for p in reactome_pathways[:3] if p.get('displayName')]
             enzyme_data['Related systems'] = ', '.join(pathway_names)
         
         return enzyme_data
@@ -124,13 +189,13 @@ class EnzymeFetcher:
         
         return pd.DataFrame(enzyme_data_list)
     
-    def save_to_csv(self, df: pd.DataFrame, filename: str = '../data/enzymes.csv'):
+    def save_to_csv(self, df: pd.DataFrame, filename: str = 'data/enzymes.csv'):
         """Save enzyme data to CSV file."""
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         df.to_csv(filename, index=False)
         print(f"Enzyme data saved to {filename}")
     
-    def save_to_excel(self, df: pd.DataFrame, filename: str = '../data/enzymes.xlsx'):
+    def save_to_excel(self, df: pd.DataFrame, filename: str = 'data/enzymes.xlsx'):
         """Save enzyme data to Excel file."""
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         df.to_excel(filename, index=False)
