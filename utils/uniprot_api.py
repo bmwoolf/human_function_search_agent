@@ -55,7 +55,6 @@ class UniProtAPI:
         url = f"{self.base_url}/uniprotkb/search"
         params = {
             'query': query,
-            'fields': 'accession,id,protein_name,gene_names,organism_name,function,subcellular_location,pathway,disease',
             'size': limit
         }
         
@@ -73,6 +72,7 @@ class UniProtAPI:
             
         except requests.RequestException as e:
             print(f"Error searching proteins: {e}")
+            print(f"Response: {getattr(e.response, 'text', None)}")
             return []
     
     def _parse_protein_data(self, data: Dict) -> Dict:
@@ -104,8 +104,10 @@ class UniProtAPI:
         if 'comments' in data:
             for comment in data['comments']:
                 if comment.get('commentType') == 'FUNCTION':
-                    protein_info['function'] = comment.get('texts', [{}])[0].get('value', '')
-                    break
+                    texts = comment.get('texts', [])
+                    if texts:
+                        protein_info['function'] = texts[0].get('value', '')
+                        break
         
         # Extract subcellular location
         if 'comments' in data:
