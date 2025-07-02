@@ -10,10 +10,12 @@ import pandas as pd
 from typing import List, Dict
 from tqdm import tqdm
 import time
+import requests
 
 from utils.uniprot_api import UniProtAPI
 from utils.pubmed_scraper import PubMedScraper
-from utils.kegg_api import KEGGAPI
+# from utils.kegg_api import KEGGAPI
+from utils.reactome_api import ReactomeAPI
 
 
 class HormoneFetcher:
@@ -22,16 +24,31 @@ class HormoneFetcher:
     def __init__(self):
         self.uniprot = UniProtAPI()
         self.pubmed = PubMedScraper()
-        self.kegg = KEGGAPI()
+        # self.kegg = KEGGAPI()  # KEGG temporarily disabled, need commercial license at $5k/year
+        self.reactome = ReactomeAPI()
         
-        # Common human hormones to fetch
+        # Only fetch insulin for debugging
         self.hormone_list = [
-            'insulin', 'glucagon', 'testosterone', 'estrogen', 'cortisol',
-            'thyroxine', 'adrenaline', 'noradrenaline', 'melatonin',
-            'growth hormone', 'prolactin', 'oxytocin', 'vasopressin',
-            'leptin', 'ghrelin', 'thyroid stimulating hormone',
-            'follicle stimulating hormone', 'luteinizing hormone',
-            'adrenocorticotropic hormone', 'aldosterone'
+            'insulin',
+            # 'glucagon',
+            # 'testosterone',
+            # 'estrogen',
+            # 'cortisol',
+            # 'thyroxine',
+            # 'adrenaline',
+            # 'noradrenaline',
+            # 'melatonin',
+            # 'growth hormone',
+            # 'prolactin',
+            # 'oxytocin',
+            # 'vasopressin',
+            # 'leptin',
+            # 'ghrelin',
+            # 'thyroid stimulating hormone',
+            # 'follicle stimulating hormone',
+            # 'luteinizing hormone',
+            # 'adrenocorticotropic hormone',
+            # 'aldosterone'
         ]
     
     def fetch_hormone_data(self, hormone_name: str) -> Dict:
@@ -59,22 +76,29 @@ class HormoneFetcher:
         }
         
         # Search UniProt for hormone proteins
-        uniprot_results = self.uniprot.get_proteins_by_keyword(
-            hormone_name, organism_id='9606', limit=10
-        )
+        try:
+            url = "https://rest.uniprot.org/uniprotkb/search"
+            params = {
+                "query": f"{hormone_name} AND organism_id:9606",
+                "fields": "accession,id,protein_name,gene_names,organism_name,function,subcellular_location,pathway,disease",
+                "size": 10
+            }
+            r = requests.get(url, params=params)
+            print(f"UniProt status code: {r.status_code}")
+            uniprot_results = r.json().get('results', [])
+            print(f"UniProt results: {uniprot_results}")
+        except Exception as e:
+            print(f"[ERROR] UniProt API call failed: {e}")
+            uniprot_results = []
         
         if uniprot_results:
-            # Use the first result as primary data
             primary_protein = uniprot_results[0]
-            
-            hormone_data['Function'] = primary_protein.get('function', '')
-            hormone_data['Location'] = ', '.join(primary_protein.get('location', []))
+            hormone_data['Function'] = primary_protein.get('protein_name', '')
+            hormone_data['Location'] = ', '.join(primary_protein.get('subcellular_location', []))
             hormone_data['Related molecules'] = ', '.join(primary_protein.get('gene_names', []))
-            hormone_data['Diseases/dysfunctions'] = ', '.join(primary_protein.get('diseases', []))
-            hormone_data['Synonyms'] = ', '.join(primary_protein.get('synonyms', []))
-            
-            # Add UniProt ID to source links
-            uniprot_id = primary_protein.get('uniprot_id', '')
+            hormone_data['Diseases/dysfunctions'] = ', '.join(primary_protein.get('disease', []))
+            hormone_data['Synonyms'] = ', '.join(primary_protein.get('protein_name', []))
+            uniprot_id = primary_protein.get('accession', '')
             if uniprot_id:
                 hormone_data['Source links'] += f"UniProt:{uniprot_id} "
         
@@ -82,19 +106,34 @@ class HormoneFetcher:
         pubmed_results = self.pubmed.search_publications(
             f"{hormone_name} hormone", max_results=5
         )
-        
         if pubmed_results:
             pmids = [pub['pmid'] for pub in pubmed_results]
             hormone_data['Source links'] += f"PubMed:{','.join(pmids)} "
         
-        # Search KEGG for pathways
-        kegg_pathways = self.kegg.search_pathways(hormone_name)
-        if kegg_pathways:
-            pathway_ids = [path['pathway_id'] for path in kegg_pathways[:3]]
-            hormone_data['Source links'] += f"KEGG:{','.join(pathway_ids)} "
-            
-            # Add pathway information to related systems
-            pathway_names = [path['name'] for path in kegg_pathways[:3]]
+        # KEGG API temporarily disabled
+        # try:
+        #     kegg_pathways = self.kegg.search_pathways(hormone_name)
+        #     print(f"KEGG pathways: {kegg_pathways}")
+        # except Exception as e:
+        #     print(f"[ERROR] KEGG API call failed: {e}")
+        #     kegg_pathways = []
+        # if kegg_pathways:
+        #     pathway_ids = [path['pathway_id'] for path in kegg_pathways[:3]]
+        #     hormone_data['Source links'] += f"KEGG:{','.join(pathway_ids)} "
+        #     pathway_names = [path['name'] for path in kegg_pathways[:3]]
+        #     hormone_data['Related systems'] = ', '.join(pathway_names)
+
+        # Reactome API for pathway data
+        try:
+            reactome_pathways = self.reactome.search_pathways(hormone_name)
+            print(f"Reactome pathways: {reactome_pathways}")
+        except Exception as e:
+            print(f"[ERROR] Reactome API call failed: {e}")
+            reactome_pathways = []
+        if reactome_pathways:
+            pathway_ids = [p.get('stId') for p in reactome_pathways[:3] if p.get('stId')]
+            hormone_data['Source links'] += f"Reactome:{','.join(pathway_ids)} "
+            pathway_names = [p.get('displayName') for p in reactome_pathways[:3] if p.get('displayName')]
             hormone_data['Related systems'] = ', '.join(pathway_names)
         
         return hormone_data
