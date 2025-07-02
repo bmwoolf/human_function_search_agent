@@ -309,8 +309,4 @@ def streamlit_app():
 
 
 if __name__ == "__main__":
-    # Check if running with streamlit
-    if len(sys.argv) > 1 and sys.argv[1] == "streamlit":
-        streamlit_app()
-    else:
-        cli() 
+    streamlit_app() 
