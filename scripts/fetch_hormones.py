@@ -77,15 +77,9 @@ class HormoneFetcher:
         
         # Search UniProt for hormone proteins
         try:
-            url = "https://rest.uniprot.org/uniprotkb/search"
-            params = {
-                "query": f"{hormone_name} AND organism_id:9606",
-                "fields": "accession,id,protein_name,gene_names,organism_name,function,subcellular_location,pathway,disease",
-                "size": 10
-            }
-            r = requests.get(url, params=params)
-            print(f"UniProt status code: {r.status_code}")
-            uniprot_results = r.json().get('results', [])
+            uniprot_results = self.uniprot.get_proteins_by_keyword(
+                f"{hormone_name} AND organism_id:9606", limit=10
+            )
             print(f"UniProt results: {uniprot_results}")
         except Exception as e:
             print(f"[ERROR] UniProt API call failed: {e}")
@@ -124,9 +118,21 @@ class HormoneFetcher:
         #     hormone_data['Related systems'] = ', '.join(pathway_names)
 
         # Reactome API for pathway data
+        reactome_pathways = []
         try:
+            # Try hormone name first
             reactome_pathways = self.reactome.search_pathways(hormone_name)
-            print(f"Reactome pathways: {reactome_pathways}")
+            print(f"Reactome pathways (by name): {reactome_pathways}")
+            # If no results, try gene symbol from UniProt
+            if not reactome_pathways and uniprot_results and uniprot_results[0].get('gene_names'):
+                gene_symbol = uniprot_results[0]['gene_names'][0]
+                reactome_pathways = self.reactome.search_pathways(gene_symbol)
+                print(f"Reactome pathways (by gene): {reactome_pathways}")
+            # If still no results, try UniProt accession
+            if not reactome_pathways and uniprot_results and uniprot_results[0].get('uniprot_id'):
+                uniprot_id = uniprot_results[0]['uniprot_id']
+                reactome_pathways = self.reactome.get_pathways_for_uniprot(uniprot_id)
+                print(f"Reactome pathways (by UniProt): {reactome_pathways}")
         except Exception as e:
             print(f"[ERROR] Reactome API call failed: {e}")
             reactome_pathways = []
@@ -135,6 +141,14 @@ class HormoneFetcher:
             hormone_data['Source links'] += f"Reactome:{','.join(pathway_ids)} "
             pathway_names = [p.get('displayName') for p in reactome_pathways[:3] if p.get('displayName')]
             hormone_data['Related systems'] = ', '.join(pathway_names)
+        # Display more UniProt fields in output
+        if uniprot_results:
+            primary_protein = uniprot_results[0]
+            hormone_data['Function'] = primary_protein.get('function', '')
+            hormone_data['Location'] = ', '.join(primary_protein.get('location', []))
+            hormone_data['Related molecules'] = ', '.join(primary_protein.get('gene_names', []))
+            hormone_data['Diseases/dysfunctions'] = ', '.join(primary_protein.get('diseases', []))
+            hormone_data['Synonyms'] = ', '.join(primary_protein.get('synonyms', []))
         
         return hormone_data
     
