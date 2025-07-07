@@ -127,7 +127,6 @@ With 100+ scientific databases available, we could integrate:
 - **PharmGKB** - Pharmacogenomics
 
 #### **Pathway & Systems Biology**
-- **Reactome** (already integrated) - Biological pathways
 - **WikiPathways** - Community-curated pathways
 - **KEGG** (license required) - Metabolic pathways
 - **BioCyc** - Metabolic pathway databases
